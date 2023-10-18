@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""A module for web-related functions."""
+"""
+A module for web-related functions.
+"""
 
 import requests
 import redis
-from cachetools import TTLCache
 from functools import wraps
 from typing import Callable
-
-# Create a cache with a TTL (time to live) of 10 seconds
-cache = TTLCache(maxsize=128, ttl=10)
 
 # Initialize Redis client
 redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
@@ -21,10 +19,10 @@ def redis_cache(func: Callable) -> Callable:
         cached_result = redis_client.get(f'count:{url}')
         if cached_result is not None:
             return cached_result.decode('utf-8')
-        
+
         # If not cached, call the original function and cache the result
         result = func(url)
-        redis_client.set(f'count:{url}', result)
+        redis_client.set(f'count:{url}', result, ex=10)  # Set expiration time to 10 seconds
         return result
 
     return wrapper
