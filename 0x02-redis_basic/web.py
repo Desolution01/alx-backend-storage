@@ -6,7 +6,8 @@ import redis
 import requests
 from functools import wraps
 
-r = redis.Redis()
+# Initialize the Redis connection
+r = redis.Redis(host='127.0.0.1', port=6379)
 
 def url_access_count(method):
     """Decorator for the get_page function.
@@ -31,18 +32,17 @@ def url_access_count(method):
         Returns:
             str: The HTML content of the URL.
         """
-        key = "cached:" + url
+        key = f"cached:{url}"
         cached_value = r.get(key)
         if cached_value:
             return cached_value.decode("utf-8")
 
         # Get new content and update cache
-        key_count = "count:" + url
+        key_count = f"count:{url}"
         html_content = method(url)
 
         r.incr(key_count)
         r.set(key, html_content, ex=10)
-        r.expire(key, 10)
         return html_content
 
     return wrapper
