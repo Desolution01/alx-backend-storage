@@ -1,42 +1,41 @@
 #!/usr/bin/env python3
-"""A module with tools for request caching and tracking.
-"""
+"""A module for web-related functions."""
 
-
-import redis
 import requests
+import redis
+from cachetools import TTLCache
 from functools import wraps
+from typing import Callable
 
-r = redis.Redis()
+# Create a cache with a TTL (time to live) of 10 seconds
+cache = TTLCache(maxsize=128, ttl=10)
 
+# Initialize Redis client
+redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
 
-def url_access_count(method):
-    """decorator for get_page function"""
-    @wraps(method)
-    def wrapper(url):
-        """wrapper function"""
-        key = "cached:" + url
-        cached_value = r.get(key)
-        if cached_value:
-            return cached_value.decode("utf-8")
+def redis_cache(func: Callable) -> Callable:
+    """A decorator for caching function results using Redis."""
+    @wraps(func)
+    def wrapper(url: str) -> str:
+        # Check if the result is cached in Redis
+        cached_result = redis_client.get(f'count:{url}')
+        if cached_result is not None:
+            return cached_result.decode('utf-8')
+        
+        # If not cached, call the original function and cache the result
+        result = func(url)
+        redis_client.set(f'count:{url}', result)
+        return result
 
-            # Get new content and update cache
-        key_count = "count:" + url
-        html_content = method(url)
-
-        r.incr(key_count)
-        r.set(key, html_content, ex=10)
-        r.expire(key, 10)
-        return html_content
     return wrapper
 
-
-@url_access_count
+@redis_cache
 def get_page(url: str) -> str:
-    """obtain the HTML content of a particular"""
-    results = requests.get(url)
-    return results.text
+    """Get the HTML content of a URL and cache the result with a 10-second expiration."""
+    response = requests.get(url)
+    return response.text
 
-
-if __name__ == "__main__":
-    get_page('http://slowwly.robertomurray.co.uk')
+if __name__ == '__main__':
+    # Example usage of the get_page function
+    html_content = get_page('http://slowwly.robertomurray.co.uk/delay/10000/url/http://www.google.com')
+    print(html_content)
